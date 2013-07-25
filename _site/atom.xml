@@ -4,7 +4,7 @@
    <title>iRusher.com</title>
    <link href="http://iRusher.com/atom.xml" rel="self" type="application/atom+xml"/>
    <link href="http://iRusher.com" rel="alternate" type="text/html" />
-   <updated>2013-07-24T18:42:09+08:00</updated>
+   <updated>2013-07-25T16:30:21+08:00</updated>
    <id>http://iRusher.com</id>
    <author>
      <name></name>
@@ -17,13 +17,7 @@
      <link href="http://beiyuu.com/%E5%AD%98%E5%82%A8%E9%9D%9E%E6%A0%87%E5%87%86%E7%B1%BB%E5%9E%8B"/>
      <updated>2013-07-24T00:00:00+08:00</updated>
      <id>http://beiyuu.com/存储非标准类型</id>
-     <content type="html">&lt;h1&gt;CoreData - 存储非标准类型&lt;/h1&gt;
-
-&lt;hr /&gt;
-
-&lt;p&gt;by Rusher@2013-07-24&lt;/p&gt;
-
-&lt;p&gt;非标准类型表示除CoreData默认支持的类型(int,double,NSString等等)以外的其他类型，比如一个矩形的颜色，还有Frame等，这些量CoreData默认不支持，需要做一些额外的工作使CoreData支持。方法有两种，一是使用NSValueFromater做值转换，把值的一种表现形式转化为另一种表现形式；第二种是在NSManagedObject中使用临时变量存储不支持的类型的变量。两种解决方法的原理其实是类似的，都是把&lt;strong&gt;属性的表现形式转化成CoreData支持的类型&lt;/strong&gt;，然后做持久化。&lt;/p&gt;
+     <content type="html">&lt;p&gt;非标准类型表示除CoreData默认支持的类型(int,double,NSString等等)以外的其他类型，比如一个矩形的颜色，还有Frame等，这些量CoreData默认不支持，需要做一些额外的工作使CoreData支持。方法有两种，一是使用NSValueFromater做值转换，把值的一种表现形式转化为另一种表现形式；第二种是在NSManagedObject中使用临时变量存储不支持的类型的变量。两种解决方法的原理其实是类似的，都是把&lt;strong&gt;属性的表现形式转化成CoreData支持的类型&lt;/strong&gt;，然后做持久化。&lt;/p&gt;
 
 &lt;h2&gt;值转换(NSValueTransformer)&lt;/h2&gt;
 
@@ -82,18 +76,19 @@
 &lt;p&gt;上面的代码还可以这样实现：&lt;/p&gt;
 
 &lt;pre&gt;&lt;code&gt;[NSValueTransformer registerValueTransformerWithName:sizeTransformerName
-                               transformedValueClass:[NSString class]
+                               transformedValueClass:[NSData class]
                   returningTransformedValueWithBlock:^id(id value) {
 
                       NSValue *v = (NSValue*)value;
                       CGSize size = v.CGSizeValue;
 
                       NSString *str = NSStringFromCGSize(size);
-                      return str;
+                      return [str dataUsingEncoding:NSUTF8StringEncoding];
                   }
               allowingReverseTransformationWithBlock:^id(id value) {
 
-                  NSString *str = [[NSString alloc] initWithData:value encoding:NSUTF8StringEncoding];
+                  NSString *str = [[NSString alloc] initWithData:value
+                                                        encoding:NSUTF8StringEncoding];
                   CGSize size = CGSizeFromString(str);
                   return [NSValue valueWithCGSize:size];
               }];
