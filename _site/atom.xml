@@ -4,7 +4,7 @@
    <title>iRusher.com</title>
    <link href="http://iRusher.com/atom.xml" rel="self" type="application/atom+xml"/>
    <link href="http://iRusher.com" rel="alternate" type="text/html" />
-   <updated>2013-07-25T16:30:21+08:00</updated>
+   <updated>2013-07-27T08:23:29+08:00</updated>
    <id>http://iRusher.com</id>
    <author>
      <name></name>
@@ -71,7 +71,7 @@
 @end
 &lt;/code&gt;&lt;/pre&gt;
 
-&lt;p&gt;&lt;a href=&quot;http://nshipster.com/nsvaluetransformer/&quot;&gt;NSHipster&lt;/a&gt;有一篇关于&lt;code&gt;NSValueTransformer&lt;/code&gt;的文章。当然&lt;code&gt;NSValueTransformer&lt;/code&gt;也不仅限于在CoreData中使用。Matt(AFNetworking的作者)还提供了一个快捷的&lt;code&gt;TransformerKit&lt;/code&gt;,通过元变成快速的注册一个&lt;code&gt;NSValueTransformer&lt;/code&gt;。&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;http://nshipster.com/nsvaluetransformer/&quot;&gt;NSHipster&lt;/a&gt;有一篇关于&lt;code&gt;NSValueTransformer&lt;/code&gt;的文章。当然&lt;code&gt;NSValueTransformer&lt;/code&gt;也不仅限于在CoreData中使用。Matt(AFNetworking的作者)还提供了一个快捷的&lt;code&gt;TransformerKit&lt;/code&gt;,通过元编程快速的注册一个&lt;code&gt;NSValueTransformer&lt;/code&gt;。&lt;/p&gt;
 
 &lt;p&gt;上面的代码还可以这样实现：&lt;/p&gt;
 
@@ -179,6 +179,1266 @@
     }
     [super willSave];
 }
+&lt;/code&gt;&lt;/pre&gt;
+</content>
+   </entry>
+   
+   <entry>
+     <title>Smack解析自定义包结构</title>
+     <link href="http://beiyuu.com/Smack%E8%A7%A3%E6%9E%90%E8%87%AA%E5%AE%9A%E4%B9%89%E5%8C%85%E7%BB%93%E6%9E%84"/>
+     <updated>2013-05-16T00:00:00+08:00</updated>
+     <id>http://beiyuu.com/Smack解析自定义包结构</id>
+     <content type="html">&lt;h2&gt;需求&lt;/h2&gt;
+
+&lt;p&gt;XMPP发展这么多年来，积累了很多的扩展协议，涉及到方方面面。尽管如此，有时候，还是需要自定义协议内容来满足业务上的需求。例如：&lt;/p&gt;
+
+&lt;p&gt;在聊天应用中，需要发送不同类型的消息，如文字消息，图片消息，声音消息等等。每一种消息除了有公用的属性外，还有一些自己的属性，例如图片消息，需要发送图片上传到的URL，图片的尺寸，图片的大小等等，而声音消息可能会带上音频文件的格式，以及长短等等,解决方案如下&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;message type=&quot;chat&quot; to=&quot;robota@openfire.irusher.com&quot; from=&quot;robotb@openfire.irusher.com/c3f953be&quot; id=&quot;13051615553429&quot;&amp;gt;
+  &amp;lt;body/&amp;gt;
+  &amp;lt;params xmlns=&quot;yl:xmpp:params&quot;&amp;gt;
+    &amp;lt;param name=&quot;type&quot;&amp;gt;1&amp;lt;/param&amp;gt;
+    &amp;lt;param name=&quot;url&quot;&amp;gt;some_url&amp;lt;/param&amp;gt;
+    &amp;lt;param name=&quot;width&quot;&amp;gt;100&amp;lt;/param&amp;gt;
+    &amp;lt;param name=&quot;height&quot;&amp;gt;200&amp;lt;/param&amp;gt;
+  &amp;lt;/params&amp;gt;
+&amp;lt;/message&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;对于smack来说，body,thread,subject,error,properties 之外的子元素，都需要用提供包扩展来指定解析。&lt;/p&gt;
+
+&lt;h2&gt;smack的提供者架构：包扩展(Packet Extensions)与自定义IQ&lt;/h2&gt;
+
+&lt;p&gt;Smack的提供者架构是一种模块化的机制，包括为解析自定义包结构而定义的包扩展和自定义IQ包。Smack扩展协议所用的正式提供者架构。现有的两种提供者：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;IQProvider&lt;/strong&gt;: 解析IQ包，封装成Java对象；&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;PacketExtension&lt;/strong&gt;: 解析XML子文档，封装到PacketExtension对象，然后赋给包对象。&lt;/li&gt;
+&lt;/ul&gt;
+
+
+&lt;h3&gt;IQProvider&lt;/h3&gt;
+
+&lt;p&gt;默认的，Smack只知道子包的命名空间是下面列表中的IQ包：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;jabber:iq:auth&lt;/li&gt;
+&lt;li&gt;jabber:iq:roster&lt;/li&gt;
+&lt;li&gt;jabber:iq:register&lt;/li&gt;
+&lt;/ul&gt;
+
+
+&lt;p&gt;由于XMPP和扩展协议中还有很多其他类型的IQ,所以需要一种灵活的解析机制。注册IQ提供者有两种方式：通过程序注册；在Jar包的META-INF目录添加&lt;strong&gt;smack.providers&lt;/strong&gt;文件。文件是一个XML文件，可以包含若干个iqProvider项，格式如下：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;?xml version=&quot;1.0&quot;?&amp;gt;
+ &amp;lt;smackProviders&amp;gt;
+     &amp;lt;iqProvider&amp;gt;
+         &amp;lt;elementName&amp;gt;query&amp;lt;/elementName&amp;gt;
+         &amp;lt;namespace&amp;gt;jabber:iq:time&amp;lt;/namespace&amp;gt;
+         &amp;lt;className&amp;gt;org.jivesoftware.smack.packet.Time&amp;lt;/className&amp;gt;
+     &amp;lt;/iqProvider&amp;gt;
+ &amp;lt;/smackProviders&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;每个IQ提供者对应一个元素名称和一个命名空间。上面的例子中，元素名称是'query',命名空间是'jabber:iq:time'。如果有出现重名，则使用先从classpath中加载的类。&lt;/p&gt;
+
+&lt;p&gt;IQ提供者类可以实现&lt;code&gt;IQProvider&lt;/code&gt;接口，或者继承&lt;code&gt;IQ&lt;/code&gt;类。实现&lt;code&gt;IQProvider&lt;/code&gt;接口时，每个&lt;code&gt;IQProvider&lt;/code&gt;负责解析原始的XML流，然后创建&lt;code&gt;IQ&lt;/code&gt;对象；如果继承&lt;code&gt;IQ&lt;/code&gt;类，则在解析XML过程中，利用Bean自省设置&lt;code&gt;IQ&lt;/code&gt;实例的值。例如，下面这个XMPP包：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='result' to='joe@example.com' from='mary@example.com' id='time_1'&amp;gt;
+    &amp;lt;query xmlns='jabber:iq:time'&amp;gt;
+        &amp;lt;utc&amp;gt;20020910T17:58:35&amp;lt;/utc&amp;gt;
+        &amp;lt;tz&amp;gt;MDT&amp;lt;/tz&amp;gt;
+        &amp;lt;display&amp;gt;Tue Sep 10 12:58:35 2002&amp;lt;/display&amp;gt;
+    &amp;lt;/query&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;为了能使包自动映射到上面提到的Time对象，Time对象必需设置utc,tz,display的set方法。自省服务将试着自动的将XML中的String值转化为boolean,int,long,float,double或者IQ对象需要的Class。&lt;/p&gt;
+
+&lt;h3&gt;PacketExtensionProvider&lt;/h3&gt;
+
+&lt;p&gt;包扩展提供者为自定义包提供了一个灵活的插件系统，这样，&lt;code&gt;IQ&lt;/code&gt;,&lt;code&gt;Message&lt;/code&gt;,&lt;code&gt;Presence&lt;/code&gt;中自定义的子元素就可以被解析/XML化。每个扩展的提供者需要在&lt;strong&gt;smack.providers&lt;/strong&gt;文件中注册一个elementName和namespace，如下：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;?xml version=&quot;1.0&quot;?&amp;gt;
+&amp;lt;smackProviders&amp;gt;
+    &amp;lt;extensionProvider&amp;gt;
+        &amp;lt;elementName&amp;gt;x&amp;lt;/elementName&amp;gt;
+        &amp;lt;namespace&amp;gt;jabber:iq:event&amp;lt;/namespace&amp;gt;
+        &amp;lt;className&amp;gt;org.jivesoftware.smack.packet.MessageEvent&amp;lt;/className&amp;gt;
+    &amp;lt;/extensionProvider&amp;gt;
+&amp;lt;/smackProviders&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;如果有出现重名，则使用先从classpath中加载的类。&lt;/p&gt;
+
+&lt;p&gt;当一个包中有自定义的元素，解析任务将由对应的提供者接管。提供者可以实现&lt;code&gt;PacketExtensionProvider&lt;/code&gt;接口，或者使标准的Java Bean。前一种情况，每个扩展提供者负责解析原始的XML流，然后构造出一个包扩展对象。后一种情况，将使用Bean自省自动设置包扩展对象的属性值。&lt;/p&gt;
+
+&lt;p&gt;如果一个包扩展没有对应的提供者被注册，Smack将存储存储子包中的所有顶层子XML元素到&lt;code&gt;DefaultPacketExtension&lt;/code&gt;对象，然后赋值给&lt;code&gt;Packet&lt;/code&gt;对象。&lt;/p&gt;
+
+&lt;h3&gt;程序内注册提供者&lt;/h3&gt;
+
+&lt;p&gt;使用&lt;code&gt;org.jivesoftware.smack.provider.ProviderManager&lt;/code&gt;类的单例，&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;注册自定义的&lt;code&gt;IQProvider&lt;/code&gt;:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;void addIQProvider(java.lang.String elementName, java.lang.String namespace, java.lang.Object provider)&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;void removeIQProvider(java.lang.String elementName, java.lang.String namespace)&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;注册自定义的&lt;code&gt;PacketExtensionProvider&lt;/code&gt;:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;addExtensionProvider(java.lang.String elementName, java.lang.String namespace, java.lang.Object provider)&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;void removeExtensionProvider(java.lang.String elementName, java.lang.String namespace)&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+
+
+&lt;h3&gt;默认元素&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;IQ&lt;/code&gt;,&lt;code&gt;Message&lt;/code&gt;,&lt;code&gt;Presence&lt;/code&gt;中包含的一些子元素，已经由Smack解析，通常，这些元素都是基本的XMPP定义的元素，所以，不推荐对这些元素进行修改和扩展。&lt;/p&gt;
+
+&lt;h3&gt;Maven打包复制文件到META-INF目录&lt;/h3&gt;
+
+&lt;p&gt;在src/main/resources目录下建一个META-INF目录，然后把smack.providers文件复制到这个目录，然后运行&lt;code&gt;mvn package&lt;/code&gt;的时候，Maven自动把这个目录下的的文件拷到jar包的META-INF目录下。&lt;/p&gt;
+
+&lt;h4&gt;IQ&lt;/h4&gt;
+
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;ElementName &lt;/th&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt; Namespace&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;query&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;jabber:iq:auth&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;query&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;jabber:iq:roster&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;query&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;jabber:iq:register&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;error&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;无&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+
+&lt;p&gt;以及，其他在&lt;em&gt;smack.providers&lt;/em&gt;文件中已经注册的元素和命名空间&lt;/p&gt;
+
+&lt;h4&gt;Message&lt;/h4&gt;
+
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;ElementName &lt;/th&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt; Namespace&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;subject&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;无&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;body&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;无&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;thread&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;无&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;error&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;无&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;properties&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;http://www.jivesoftware.com/xmlns/xmpp/properties&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+
+&lt;p&gt;以及，其他在&lt;em&gt;smack.providers&lt;/em&gt;文件中已经注册的元素和命名空间&lt;/p&gt;
+
+&lt;h4&gt;Precense&lt;/h4&gt;
+
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;ElementName &lt;/th&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt; Namespace&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;status&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;无&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;priority&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;无&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;show&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;无&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;error&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;无&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;properties&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;http://www.jivesoftware.com/xmlns/xmpp/properties&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+
+&lt;p&gt;以及，其他在&lt;em&gt;smack.providers&lt;/em&gt;文件中已经注册的元素和命名空间&lt;/p&gt;
+
+&lt;h2&gt;smack解析过程&lt;/h2&gt;
+
+&lt;p&gt;1.在PacketReader中解析&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;/**
+ * Parse top-level packets in order to process them further.
+ *
+ * @param thread the thread that is being used by the reader to parse incoming packets.
+ */
+private void parsePackets(Thread thread) {
+    try {
+        int eventType = parser.getEventType();
+        do {
+            if (eventType == XmlPullParser.START_TAG) {
+                if (parser.getName().equals(&quot;message&quot;)) {
+                    processPacket(PacketParserUtils.parseMessage(parser));
+                }
+                else if (parser.getName().equals(&quot;iq&quot;)) {
+                    processPacket(PacketParserUtils.parseIQ(parser, connection));
+                }
+                else if (parser.getName().equals(&quot;presence&quot;)) {
+                    processPacket(PacketParserUtils.parsePresence(parser));
+                }
+
+                … other top-level element
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;2，调用PacketParserUtils.parseXXX();&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;/**
+ * Parses a message packet.
+ *
+ * @param parser the XML parser, positioned at the start of a message packet.
+ * @return a Message packet.
+ * @throws Exception if an exception occurs while parsing the packet.
+ */
+public static Packet parseMessage(XmlPullParser parser) throws Exception {
+
+    ... 
+
+    // Parse sub-elements. We include extra logic to make sure the values
+    // are only read once. This is because it's possible for the names to appear
+    // in arbitrary sub-elements.
+    boolean done = false;
+    String thread = null;
+    Map&amp;lt;String, Object&amp;gt; properties = null;
+    while (!done) {
+        int eventType = parser.next();
+        if (eventType == XmlPullParser.START_TAG) {
+            String elementName = parser.getName();
+            String namespace = parser.getNamespace();
+            if (elementName.equals(&quot;subject&quot;)) {
+                ...
+            }
+            else if (elementName.equals(&quot;body&quot;)) {
+                ...
+            }
+            else if (elementName.equals(&quot;thread&quot;)) {
+               ...
+            }
+            else if (elementName.equals(&quot;error&quot;)) {
+                ...
+            }
+            else if (elementName.equals(&quot;properties&quot;) 
+                        &amp;amp;&amp;amp; namespace.equals(PROPERTIES_NAMESPACE))
+
+            {
+                ...
+            }
+            // Otherwise, it must be a packet extension.
+            else {
+                message.addExtension(
+                PacketParserUtils.parsePacketExtension(elementName, namespace, parser));
+            }
+        }
+        else if (eventType == XmlPullParser.END_TAG) {
+            if (parser.getName().equals(&quot;message&quot;)) {
+                done = true;
+            }
+        }
+    }
+
+    ...
+
+    return message;
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;3.调用&lt;code&gt;PacketParserUtils.parsePacketExtension(elementName, namespace, parser));&lt;/code&gt;方法，由&lt;code&gt;ProviderManager&lt;/code&gt;查找对应的包扩展提供者，如果找到，则调用扩展的解析方法，如果没有找到，则解析子元素中顶级的元素，然后存到&lt;code&gt;DefaultPacketExtension&lt;/code&gt;的对象中。&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;/**
+ * Parses a packet extension sub-packet.
+ *
+ * @param elementName the XML element name of the packet extension.
+ * @param namespace the XML namespace of the packet extension.
+ * @param parser the XML parser, positioned at the starting element of the extension.
+ * @return a PacketExtension.
+ * @throws Exception if a parsing error occurs.
+ */
+public static PacketExtension parsePacketExtension(String elementName, String namespace, XmlPullParser parser)
+        throws Exception
+{
+    // See if a provider is registered to handle the extension.
+    Object provider = ProviderManager.getInstance().getExtensionProvider(elementName, namespace);
+    if (provider != null) {
+        if (provider instanceof PacketExtensionProvider) {
+            return ((PacketExtensionProvider)provider).parseExtension(parser);
+        }
+        else if (provider instanceof Class) {
+            return (PacketExtension)parseWithIntrospection(
+                    elementName, (Class&amp;lt;?&amp;gt;)provider, parser);
+        }
+    }
+    // No providers registered, so use a default extension.
+    DefaultPacketExtension extension = new DefaultPacketExtension(elementName, namespace);
+    boolean done = false;
+    while (!done) {
+        int eventType = parser.next();
+        if (eventType == XmlPullParser.START_TAG) {
+            String name = parser.getName();
+            // If an empty element, set the value with the empty string.
+            if (parser.isEmptyElementTag()) {
+                extension.setValue(name,&quot;&quot;);
+            }
+            // Otherwise, get the the element text.
+            else {
+                eventType = parser.next();
+                if (eventType == XmlPullParser.TEXT) {
+                    String value = parser.getText();
+                    extension.setValue(name, value);
+                }
+            }
+        }
+        else if (eventType == XmlPullParser.END_TAG) {
+            if (parser.getName().equals(elementName)) {
+                done = true;
+            }
+        }
+    }
+    return extension;
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;实现需求&lt;/h2&gt;
+
+&lt;p&gt;回到一开始的例子，我们对Message进行了扩展，所以需要定义一个&lt;code&gt;PacketExtension&lt;/code&gt;，作为自定义的&lt;code&gt;params&lt;/code&gt;对应的包扩展。&lt;/p&gt;
+
+&lt;p&gt;MultiTypeMessage是一个抽象类，抽象方法&lt;code&gt;public abstract String toXML();&lt;/code&gt;交给具体的子类去实现。这个类中还提供了一些工具方法，例如，组装&lt;code&gt;&amp;lt;param/&amp;gt;&lt;/code&gt;,组装最终的&lt;code&gt;&amp;lt;params xmlns=&quot;yl:xmpp:params&quot;&lt;/code&gt;，使用反射将参数对注入具体的Message对象中。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;File: MultiTypeMessage.java&lt;/strong&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;package com.irusher.xmpp.smackx;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Map;
+
+import org.jivesoftware.smack.packet.PacketExtension;
+
+public abstract class MultiTypeMessage implements PacketExtension {
+
+    // params holder that store all sub-element of &amp;lt;params
+    // xmlns=&quot;yl:xmpp:params&quot;&amp;gt;
+    private Map&amp;lt;String, String&amp;gt; paramHolder;
+
+    // different message type
+    private String type;
+
+    // TODO write other shared member variables here, e.g. passid,content etc.
+    //
+    //
+
+    // method in PacketExtension interface
+    public String getElementName() {
+        return &quot;params&quot;;
+    }
+
+    // method in PacketExtension interface
+    public String getNamespace() {
+        return &quot;yl:xmpp:params&quot;;
+    }
+
+    // method in PacketExtension interface
+    // when message is being sent,this method will be invoked
+    // to get this extension's XML presentation.
+    public abstract String toXML();
+
+    String getSubElementName() {
+        return &quot;param&quot;;
+    }
+
+    String assembleFinalElment(String subElmentStr) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(&quot;&amp;lt;&quot;).append(getElementName()).append(&quot; xmlns=\&quot;&quot;)
+                .append(getNamespace()).append(&quot;\&quot;&amp;gt;&quot;);
+        sb.append(subElmentStr);
+        sb.append(&quot;&amp;lt;/&quot;).append(getElementName()).append(&quot;&amp;gt;&quot;);
+
+        return sb.toString();
+    }
+
+    String assembleSubElement(String name, String value) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(&quot;&amp;lt;&quot;).append(getSubElementName()).append(&quot; &quot;);
+        sb.append(&quot;name=\&quot;&quot;).append(name).append(&quot;\&quot;&amp;gt;&quot;);
+        sb.append(value);
+        sb.append(&quot;&amp;lt;/&quot;).append(getSubElementName()).append(&quot;&amp;gt;&quot;);
+
+        return sb.toString();
+    }
+
+    // utility method used to set object's value hold by the map
+    // by using java reflection
+    void parseStringToClassAttribute(Class&amp;lt;?&amp;gt; clazz, Object obj,
+            Map&amp;lt;String, String&amp;gt; params) {
+
+        for (String key : params.keySet()) {
+            String value = params.get(key);
+
+            String methodName = &quot;set&quot;
+                    + (String.valueOf(value.charAt(0)).toUpperCase())
+                    + (value.substring(1));
+
+            try {
+                Method method = clazz.getMethod(methodName, String.class);
+                method.invoke(this, value);
+
+            } catch (NoSuchMethodException e) {
+                e.printStackTrace();
+            } catch (SecurityException e) {
+                e.printStackTrace();
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            } catch (IllegalArgumentException e) {
+                e.printStackTrace();
+            } catch (InvocationTargetException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public Map&amp;lt;String, String&amp;gt; getParamHolder() {
+        return paramHolder;
+    }
+
+    public void setParamHolder(Map&amp;lt;String, String&amp;gt; paramHolder) {
+        this.paramHolder = paramHolder;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public enum MessageType {
+        TEXT(&quot;0&quot;), IMAGE(&quot;1&quot;), VOICE(&quot;2&quot;), FOOT(&quot;3&quot;), WEIBO(&quot;4&quot;);
+
+        private final String type;
+
+        private MessageType(String type) {
+            this.type = type;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public static MessageType stringToMessageType(String s) {
+            if (s == null)
+                return null;
+
+            if (s.equals(&quot;0&quot;)) {
+                return TEXT;
+            } else if (s.equals(&quot;1&quot;)) {
+                return IMAGE;
+            } else if (s.equals(&quot;2&quot;)) {
+                return VOICE;
+            } else if (s.equals(&quot;3&quot;)) {
+                return FOOT;
+            } else if (s.equals(&quot;4&quot;)) {
+                return WEIBO;
+            }
+            return null;
+        }
+    }
+
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;当smack解析收到的XML后，遇到元素名是'params',命名空间是'yl:xmpp:params'的子元素后，就会调用这个类的解析方法。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;File: MultiTypeMessageExtensionProvider.java&lt;/strong&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;package com.irusher.xmpp.smackx;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.jivesoftware.smack.packet.PacketExtension;
+import org.jivesoftware.smack.provider.PacketExtensionProvider;
+import org.xmlpull.v1.XmlPullParser;
+
+public class MultiTypeMessageExtensionProvider implements
+        PacketExtensionProvider {
+
+    public PacketExtension parseExtension(XmlPullParser parser)
+            throws Exception {
+
+        Map&amp;lt;String, String&amp;gt; paramHolder = new HashMap&amp;lt;String, String&amp;gt;();
+
+        // parse raw XML stream and put all param pairs into a map
+        boolean done = false;
+        while (!done) {
+            int eventType = parser.next();
+            if (eventType == XmlPullParser.START_TAG) {
+                if (parser.getName().equals(&quot;param&quot;)) {
+                    paramHolder.put(parser.getAttributeValue(0),
+                            parser.nextText());
+                }
+            } else if (eventType == XmlPullParser.END_TAG) {
+                if (parser.getName().equals(&quot;params&quot;)) {
+                    done = true;
+                }
+            }
+        }
+
+        // invoke MessageFactory to create a message object with different type 
+        MultiTypeMessage message = MessageFactory.getInstance().createMessage(
+                paramHolder);
+
+        return message;
+    }
+
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;图片信息类，保持具体的图片信息相关的参数，并负责XML化。&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;File: ImageMessage.java&lt;/strong&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;package com.irusher.xmpp.smackx;
+
+import java.util.Map;
+
+public class ImageMessage extends MultiTypeMessage {
+
+    private String url;
+    private String width;
+    private String height;
+
+    public ImageMessage() {
+        this.setType(MessageType.IMAGE.getType());
+    }
+
+    public ImageMessage(Map&amp;lt;String, String&amp;gt; params) {
+        this.setParamHolder(params);
+        this.setType(MessageType.IMAGE.getType());
+        parseStringToClassAttribute(ImageMessage.class, this, params);
+    }
+
+    /**
+     * &amp;lt;code&amp;gt;&amp;amp;lt;param name=&quot;url&quot;&amp;amp;gt;http://xxx.com/img.png&amp;amp;lt;/param&amp;amp;gt;
+     * &amp;amp;lt;param name=&quot;width&quot;&amp;amp;gt;100&amp;amp;gt;
+     * &amp;amp;lt;param name=&quot;height&quot;&amp;amp;gt;100&amp;amp;lt;/param&amp;amp;gt;&amp;lt;/code&amp;gt;
+     */
+    @Override
+    public String toXML() {
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(assembleSubElement(&quot;url&quot;, this.url));
+        sb.append(assembleSubElement(&quot;width&quot;, String.valueOf(this.width)));
+        sb.append(assembleSubElement(&quot;height&quot;, String.valueOf(this.height)));
+        return assembleFinalElment(sb.toString());
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    public String getWidth() {
+        return width;
+    }
+
+    public void setWidth(String width) {
+        this.width = width;
+    }
+
+    public String getHeight() {
+        return height;
+    }
+
+    public void setHeight(String height) {
+        this.height = height;
+    }
+}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;可以在程序中注册扩展包提供者；&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;ProviderManager manager = ProviderManager.getInstance();
+manager.addExtensionProvider(&quot;params&quot;, &quot;yl:xmpp:params&quot;,
+        new MultiTypeMessageExtensionProvider());
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;或者在smack.providers中声明一个扩展包提供者：&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;File : smack.providers&lt;/strong&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&amp;gt;
+
+&amp;lt;smackProviders&amp;gt;
+    &amp;lt;extensionProvider&amp;gt;
+        &amp;lt;elementName&amp;gt;params&amp;lt;/elementName&amp;gt;
+        &amp;lt;namespace&amp;gt;yl:xmpp:params&amp;lt;/namespace&amp;gt;
+        &amp;lt;className&amp;gt;com.irusher.xmpp.smackx.MultiTypeMessageExtensionProvider&amp;lt;/className&amp;gt;
+    &amp;lt;/extensionProvider&amp;gt;
+&amp;lt;/smackProviders&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;相关文档&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;http://www.igniterealtime.org/builds/smack/docs/latest/javadoc/org/jivesoftware/smack/packet/PacketExtension.html&quot;&gt;Smack JavaDoc&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;http://www.igniterealtime.org/builds/smack/docs/latest/documentation/providers.html&quot;&gt;Smack: Provider Architecture: Packet Extensions and Custom IQ's&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+</content>
+   </entry>
+   
+   <entry>
+     <title>XEP-0050_专用命令</title>
+     <link href="http://beiyuu.com/XEP-0050_%E4%B8%93%E7%94%A8%E5%91%BD%E4%BB%A4"/>
+     <updated>2013-05-10T00:00:00+08:00</updated>
+     <id>http://beiyuu.com/XEP-0050_专用命令</id>
+     <content type="html">&lt;blockquote&gt;&lt;p&gt;  &lt;a href=&quot;http://xmpp.org/extensions/xep-0050.html&quot;&gt;XEP-0050: Ad-Hoc Commands&lt;/a&gt;&lt;/p&gt;&lt;/blockquote&gt;
+
+&lt;h2&gt;1.Introduction&lt;/h2&gt;
+
+&lt;p&gt;此扩展协议的可以使两个实体间建立一个命令会话,而不需要特定的命名空间，同时，还定义了会话的类型，类似于菜单的概念。&lt;/p&gt;
+
+&lt;p&gt;定义这样的一个协议的动机是扩展Jabber的技术，使之不仅仅应用在即时通信上。就像Web应用一样，Jabber应用也是需要一个客户端，一个用户可以通过他来和web应用交互。客户端不需要特殊的改写就可以使用Jabber应用。&lt;/p&gt;
+
+&lt;p&gt;分配给此扩展协议的命名空间是&lt;strong&gt;&quot;http://jabber.org/protocol/commands&quot;&lt;/strong&gt;.这个命名空间依赖&lt;code&gt;&amp;lt;iq/&amp;gt;&lt;/code&gt;元素来执行命令，使用&lt;code&gt;&amp;lt;message/&amp;gt;&lt;/code&gt;返回执行结果。协议依赖&lt;a href=&quot;http://xmpp.org/extensions/xep-0030.html&quot;&gt;XEP-0030: Service Discovery&lt;/a&gt;查询服务支持的命令。协议倾向于实现&lt;a href=&quot;http://xmpp.org/extensions/xep-0004.html&quot;&gt;XEP-0004: Data Forms&lt;/a&gt;扩展协议，但这不是必需的。&lt;/p&gt;
+
+&lt;h2&gt;2.Use Cases&lt;/h2&gt;
+
+&lt;h3&gt;2.1 Discovering Support&lt;/h3&gt;
+
+&lt;p&gt;请求者使用*服务查询*来查看服务端是否支持x-commands。请求者生成一个&quot;#info&quot;查询发到服务端。如果支持，服务端返回一个&lt;code&gt;&amp;lt;feature/&amp;gt;&lt;/code&gt;元素，其中&lt;code&gt;var&lt;/code&gt;属性的值为&lt;code&gt;&quot;http://jabber.org/protocol/commands&quot;&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;客户端请求服务端：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='get'
+    to='responder@domain'
+    from='requester@domain'&amp;gt;
+  &amp;lt;query xmlns='http://jabber.org/protocol/disco#info'/&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;服务端返回客户端：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='result'
+    from='responder@domain'
+    to='requester@domain'&amp;gt;
+  &amp;lt;query xmlns='http://jabber.org/protocol/disco#info'&amp;gt;
+    ...
+    &amp;lt;feature var='http://jabber.org/protocol/commands'/&amp;gt;
+    ...
+  &amp;lt;/query&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3&gt;2.2 获取命令列表&lt;/h3&gt;
+
+&lt;p&gt;…一些信息查询 …&lt;/p&gt;
+
+&lt;h3&gt;2.4 命令执行过程&lt;/h3&gt;
+
+&lt;h3&gt;2.4.1 单步执行&lt;/h3&gt;
+
+&lt;p&gt;请求这发一个包含命令的&lt;code&gt;&amp;lt;iq/&amp;gt;&lt;/code&gt;来执行命令.&lt;/p&gt;
+
+&lt;p&gt;执行命令&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='set' to='responder@domain' id='exec1'&amp;gt;
+  &amp;lt;command xmlns='http://jabber.org/protocol/commands'
+           node='list'
+           action='execute'/&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;请求命令可能包含&lt;code&gt;action='execute'&lt;/code&gt;，这是默认值。&lt;/p&gt;
+
+&lt;p&gt;如果命令不包含其他的交互步骤，服务端发送一个类似下面的数据：&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='result' from='responder@domain' to='requester@domain' id='exec1'&amp;gt;
+  &amp;lt;command xmlns='http://jabber.org/protocol/commands'
+           sessionid='list:20020923T213616Z-700'
+           node='list'
+           status='completed'&amp;gt;
+    &amp;lt;x xmlns='jabber:x:data' type='result'&amp;gt;
+      &amp;lt;title&amp;gt;Available Services&amp;lt;/title&amp;gt;
+      &amp;lt;reported&amp;gt;
+        &amp;lt;field var='service' label='Service'/&amp;gt;
+        &amp;lt;field var='runlevel-1' label='Single-User mode'/&amp;gt;
+        &amp;lt;field var='runlevel-2' label='Non-Networked Multi-User mode'/&amp;gt;
+        &amp;lt;field var='runlevel-3' label='Full Multi-User mode'/&amp;gt;
+        &amp;lt;field var='runlevel-5' label='X-Window mode'/&amp;gt;
+      &amp;lt;/reported&amp;gt;
+      &amp;lt;item&amp;gt;
+        &amp;lt;field var='service'&amp;gt;&amp;lt;value&amp;gt;httpd&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+        &amp;lt;field var='runlevel-1'&amp;gt;&amp;lt;value&amp;gt;off&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+        &amp;lt;field var='runlevel-2'&amp;gt;&amp;lt;value&amp;gt;off&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+        &amp;lt;field var='runlevel-3'&amp;gt;&amp;lt;value&amp;gt;on&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+        &amp;lt;field var='runlevel-5'&amp;gt;&amp;lt;value&amp;gt;on&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+      &amp;lt;/item&amp;gt;
+      &amp;lt;item&amp;gt;
+        &amp;lt;field var='service'&amp;gt;&amp;lt;value&amp;gt;postgresql&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+        &amp;lt;field var='runlevel-1'&amp;gt;&amp;lt;value&amp;gt;off&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+        &amp;lt;field var='runlevel-2'&amp;gt;&amp;lt;value&amp;gt;off&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+        &amp;lt;field var='runlevel-3'&amp;gt;&amp;lt;value&amp;gt;on&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+        &amp;lt;field var='runlevel-5'&amp;gt;&amp;lt;value&amp;gt;on&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+      &amp;lt;/item&amp;gt;
+      &amp;lt;item&amp;gt;
+        &amp;lt;field var='service'&amp;gt;&amp;lt;value&amp;gt;jabberd&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+        &amp;lt;field var='runlevel-1'&amp;gt;&amp;lt;value&amp;gt;off&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+        &amp;lt;field var='runlevel-2'&amp;gt;&amp;lt;value&amp;gt;off&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+        &amp;lt;field var='runlevel-3'&amp;gt;&amp;lt;value&amp;gt;on&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+        &amp;lt;field var='runlevel-5'&amp;gt;&amp;lt;value&amp;gt;on&amp;lt;/value&amp;gt;&amp;lt;/field&amp;gt;
+      &amp;lt;/item&amp;gt;
+    &amp;lt;/x&amp;gt;
+  &amp;lt;/command&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;上面的返回数据是&quot;jabber:x:data&quot;规格的表单。&lt;/p&gt;
+
+&lt;h3&gt;2.4.2 多步执行&lt;/h3&gt;
+
+&lt;p&gt;如果命令需要更多的交互步骤，服务端返回关于命令的信息的&lt;code&gt;&amp;lt;iq/&amp;gt;&lt;/code&gt;结果。&lt;/p&gt;
+
+&lt;p&gt;执行命令请求(stage1)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='set' to='responder@domain' id='exec1'&amp;gt;
+  &amp;lt;command xmlns='http://jabber.org/protocol/commands'
+           node='config'
+           action='execute'/&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;返回执行结果(stage1)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='result' from='responder@domain' to='requester@domain' id='exec1'&amp;gt;
+  &amp;lt;command xmlns='http://jabber.org/protocol/commands'
+           sessionid='config:20020923T213616Z-700'
+           node='config'
+           status='executing'&amp;gt;
+    &amp;lt;actions execute='next'&amp;gt;
+      &amp;lt;next/&amp;gt;
+    &amp;lt;/actions&amp;gt;
+    &amp;lt;x xmlns='jabber:x:data' type='form'&amp;gt;
+      &amp;lt;title&amp;gt;Configure Service&amp;lt;/title&amp;gt;
+      &amp;lt;instructions&amp;gt;
+        Please select the service to configure.
+      &amp;lt;/instructions&amp;gt;
+      &amp;lt;field var='service' label='Service' type='list-single'&amp;gt;
+        &amp;lt;option&amp;gt;&amp;lt;value&amp;gt;httpd&amp;lt;/value&amp;gt;&amp;lt;/option&amp;gt;
+        &amp;lt;option&amp;gt;&amp;lt;value&amp;gt;jabberd&amp;lt;/value&amp;gt;&amp;lt;/option&amp;gt;
+        &amp;lt;option&amp;gt;&amp;lt;value&amp;gt;postgresql&amp;lt;/value&amp;gt;&amp;lt;/option&amp;gt;
+      &amp;lt;/field&amp;gt;
+    &amp;lt;/x&amp;gt;
+  &amp;lt;/command&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;code&gt;&amp;lt;command/&amp;gt;&lt;/code&gt;应该包含&lt;code&gt;&amp;lt;actions/&amp;gt;&lt;/code&gt;，用来规定下一步中允许执行哪一种类型的动作。&lt;code&gt;&amp;lt;actions/&amp;gt;&lt;/code&gt;元素中的每个值和&lt;code&gt;&amp;lt;command/&amp;gt;&lt;/code&gt;元素中的action属性相同.execute属性值表示下一步中的默认执行动作的类型。在上面的例子中，下一步的执行类型是'next'。&lt;/p&gt;
+
+&lt;p&gt;请求者继续提交表单，附带命令节点(command node)和sessionid&lt;/p&gt;
+
+&lt;p&gt;执行命令请求(stage2)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='set' to='responder@domain' id='exec2'&amp;gt;
+  &amp;lt;command xmlns='http://jabber.org/protocol/commands'
+           sessionid='config:20020923T213616Z-700'
+           node='config'&amp;gt;
+    &amp;lt;x xmlns='jabber:x:data' type='submit'&amp;gt;
+      &amp;lt;field var='service'&amp;gt;
+        &amp;lt;value&amp;gt;httpd&amp;lt;/value&amp;gt;
+      &amp;lt;/field&amp;gt;
+    &amp;lt;/x&amp;gt;
+  &amp;lt;/command&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;返回执行结果(stage2)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='result' from='responder@domain' to='requester@domain' id='exec2'&amp;gt;
+  &amp;lt;command xmlns='http://jabber.org/protocol/commands'
+           sessionid='config:20020923T213616Z-700'
+           node='config'
+           status='executing'&amp;gt;
+    &amp;lt;actions execute='complete'&amp;gt;
+      &amp;lt;prev/&amp;gt;
+      &amp;lt;complete/&amp;gt;
+    &amp;lt;/actions&amp;gt;
+    &amp;lt;x xmlns='jabber:x:data' type='form'&amp;gt;
+      &amp;lt;title&amp;gt;Configure Service&amp;lt;/title&amp;gt;
+      &amp;lt;instructions&amp;gt;
+        Please select the run modes and state for 'httpd'.
+      &amp;lt;/instructions&amp;gt;
+      &amp;lt;field var='runlevel' label='Run Modes' type='list-multi'&amp;gt;
+        &amp;lt;value&amp;gt;3&amp;lt;/value&amp;gt;
+        &amp;lt;value&amp;gt;5&amp;lt;/value&amp;gt;
+        &amp;lt;option label='Single-User'&amp;gt;&amp;lt;value&amp;gt;1&amp;lt;/value&amp;gt;&amp;lt;/option&amp;gt;
+        &amp;lt;option label='Non-Networked Multi-User'&amp;gt;&amp;lt;value&amp;gt;2&amp;lt;/value&amp;gt;&amp;lt;/option&amp;gt;
+        &amp;lt;option label='Full Multi-User'&amp;gt;&amp;lt;value&amp;gt;3&amp;lt;/value&amp;gt;&amp;lt;/option&amp;gt;
+        &amp;lt;option label='X-Window'&amp;gt;&amp;lt;value&amp;gt;5&amp;lt;/value&amp;gt;&amp;lt;/option&amp;gt;
+      &amp;lt;/field&amp;gt;
+      &amp;lt;field var='state' label='Run State' type='list-single'&amp;gt;
+        &amp;lt;value&amp;gt;off&amp;lt;/value&amp;gt;
+        &amp;lt;option label='Active'&amp;gt;&amp;lt;value&amp;gt;off&amp;lt;/value&amp;gt;&amp;lt;/option&amp;gt;
+        &amp;lt;option label='Inactive'&amp;gt;&amp;lt;value&amp;gt;on&amp;lt;/value&amp;gt;&amp;lt;/option&amp;gt;
+      &amp;lt;/field&amp;gt;
+    &amp;lt;/x&amp;gt;
+  &amp;lt;/command&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;执行命令请求(stage3)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='set' to='responder@domain' id='exec3'&amp;gt;
+  &amp;lt;command xmlns='http://jabber.org/protocol/commands'
+           sessionid='config:20020923T213616Z-700'
+           node='config'&amp;gt;
+    &amp;lt;x xmlns='jabber:x:data' type='submit'&amp;gt;
+      &amp;lt;field var='mode'&amp;gt;
+        &amp;lt;value&amp;gt;3&amp;lt;/value&amp;gt;
+      &amp;lt;/field&amp;gt;
+      &amp;lt;field var='state'&amp;gt;
+        &amp;lt;value&amp;gt;on&amp;lt;/value&amp;gt;
+      &amp;lt;/field&amp;gt;
+    &amp;lt;/x&amp;gt;
+  &amp;lt;/command&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;返回执行结果(stage3)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='result' from='responder@domain' to='requester@domain' id='exec3'&amp;gt;
+  &amp;lt;command xmlns='http://jabber.org/protocol/commands'
+           sessionid='config:20020923T213616Z-700'
+           node='config'
+           status='completed'&amp;gt;
+    &amp;lt;note type='info'&amp;gt;Service 'httpd' has been configured.&amp;lt;/note&amp;gt;
+  &amp;lt;/command&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;*我的解释: 由于stage2中返回的&lt;code&gt;&amp;lt;actions/&amp;gt;&lt;/code&gt;有两种,'prev'和'complete'，上面的这一步演示了'complete'的执行，下面的例子演示'prev‘执行。*&lt;/p&gt;
+
+&lt;p&gt;如果请求者需要返回上一步，需要发送一个带&quot;action='prev'&quot;的命令iq.&lt;/p&gt;
+
+&lt;p&gt;执行命令请求(stage2 -&gt; stage1)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='set' to='responder@domain' id='exec2'&amp;gt;
+  &amp;lt;command xmlns='http://jabber.org/protocol/commands'
+           sessionid='config:20020923T213616Z-700'
+           node='config'
+           action='prev'/&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;返回执行结果(stage2 -&gt; stage1)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='result' from='responder@domain' to='requester@domain' id='exec2'&amp;gt;
+  &amp;lt;command xmlns='http://jabber.org/protocol/commands'
+           sessionid='config:20020923T213616Z-700'
+           node='config'
+           status='executing'&amp;gt;
+    &amp;lt;actions execute='next'&amp;gt;
+      &amp;lt;next/&amp;gt;
+    &amp;lt;/actions&amp;gt;
+    &amp;lt;x xmlns='jabber:x:data' type='form'&amp;gt;
+      &amp;lt;title&amp;gt;Configure Service&amp;lt;/title&amp;gt;
+      &amp;lt;instructions&amp;gt;
+        Please select the service to configure.
+      &amp;lt;/instructions&amp;gt;
+      &amp;lt;field var='service' label='Service' type='list-single'&amp;gt;
+        &amp;lt;value&amp;gt;httpd&amp;lt;/value&amp;gt;
+        &amp;lt;option&amp;gt;&amp;lt;value&amp;gt;httpd&amp;lt;/value&amp;gt;&amp;lt;/option&amp;gt;
+        &amp;lt;option&amp;gt;&amp;lt;value&amp;gt;jabberd&amp;lt;/value&amp;gt;&amp;lt;/option&amp;gt;
+        &amp;lt;option&amp;gt;&amp;lt;value&amp;gt;postgresql&amp;lt;/value&amp;gt;&amp;lt;/option&amp;gt;
+      &amp;lt;/field&amp;gt;
+    &amp;lt;/x&amp;gt;
+  &amp;lt;/command&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3&gt;2.4.3 取消执行&lt;/h3&gt;
+
+&lt;p&gt;当一个命令有多步执行时，请求者可能会在某一步取消请求。请求者可以发送一个带&quot;action='cancel'&quot;的&lt;code&gt;&amp;lt;command/&amp;gt;&lt;/code&gt;来取消执行命令。&lt;/p&gt;
+
+&lt;p&gt;执行命令请求(stage2取消)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='set' to='responder@domain' id='exec3'&amp;gt;
+  &amp;lt;command xmlns='http://jabber.org/protocol/commands'
+           sessionid='config:20020923T213616Z-700'
+           node='config'
+           action='cancel'/&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;返回执行结果(stage2取消)&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;iq type='result' from='responder@domain' to='requester@domain' id='exec3'&amp;gt;
+  &amp;lt;command xmlns='http://jabber.org/protocol/commands'
+           sessionid='config:20020923T213616Z-700'
+           node='config'
+           status='canceled'/&amp;gt;
+&amp;lt;/iq&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2&gt;3.Implementation Notes&lt;/h2&gt;
+
+&lt;h3&gt;3.1&lt;/h3&gt;
+
+&lt;p&gt;上面的例子只是为了描述协议使用。没有预设的或必需的命令。&lt;/p&gt;
+
+&lt;h3&gt;3.2 命令节点&lt;/h3&gt;
+
+&lt;p&gt;每个命令由它的'node'来标示。这和*服务查询*中返回的&lt;code&gt;&amp;lt;item/&amp;gt;&lt;/code&gt;中的'node'相同。*服务查询*规定每个JID下的所有'node'都应该有唯一的表示。服务端的实现者来保证'node'的唯一性。&lt;/p&gt;
+
+&lt;h3&gt;3.3 会话的生命周期&lt;/h3&gt;
+
+&lt;p&gt;命令的执行是建立在会话之上的。没个会话由'sessionid'属性来标识，在请求者/响应者之间保持合法就可以了。响应者通过请求者带来的信息决定回话的生命周期。&lt;/p&gt;
+
+&lt;p&gt;请求者通过发送一个带'node'属性的&lt;code&gt;&amp;lt;command/&amp;gt;&lt;/code&gt;开始一个新的会话（可以添加一个可选的&quot;status='execute&quot;）。请求者一旦收到'sessionid',就必需开始维持回话的生命周期。服务端通过发送一个&lt;code&gt;&amp;lt;command status='completed'/&amp;gt;&lt;/code&gt;来结束一个会话，或者由请求者发送&lt;code&gt;&amp;lt;command action='cancel'/&amp;gt;&lt;/code&gt;取消sessionid对应的会话。&lt;/p&gt;
+
+&lt;p&gt;会话结束后，sessionid不应该再被重用。响应者(服务端)保证sessionid合法且唯一。&lt;/p&gt;
+
+&lt;p&gt;请求者可能在多个会话中执行相同的命令，如果响应者不允许这样，必需返回&lt;code&gt;&amp;lt;not-allowed/&amp;gt;&lt;/code&gt;错误。&lt;/p&gt;
+
+&lt;h3&gt;3.4 命令执行动作&lt;/h3&gt;
+
+&lt;p&gt;命令执行的每一步中的结果，应该包含一个&lt;code&gt;&amp;lt;actions/&amp;gt;&lt;/code&gt;元素。客户端可以使用这些信息为用户提供一个友好的提示界面。&lt;/p&gt;
+
+&lt;p&gt;对应一个客户端，下面是一些典型的action类型:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;'cancel'动作是一直被允许的；&lt;/li&gt;
+&lt;li&gt;如果没有&lt;code&gt;&amp;lt;actions/&amp;gt;&lt;/code&gt;元素，客户端可以使用一个单步执行的对话视图：
+
+&lt;ul&gt;
+&lt;li&gt;'execute'动作就等同于'complete'动作。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;如果有&lt;code&gt;&amp;lt;actions/&amp;gt;&lt;/code&gt;元素，客户端应该用一个多步执行的对话视图：
+
+&lt;ul&gt;
+&lt;li&gt;'execute'总是被允许的，等同与'next'&lt;/li&gt;
+&lt;li&gt;'prev'为返回动作，通常对应于向导界面的返回按钮，如果没有，则不能返回；&lt;/li&gt;
+&lt;li&gt;'next'为继续执行动作，通常对应于向导界面的下一步按钮，如果没有，则不能执行下一步；&lt;/li&gt;
+&lt;li&gt;'complete'为完成动作，通常对应于向导界面的完成按钮，如果没有，则不能完成；&lt;/li&gt;
+&lt;li&gt;如果&lt;code&gt;&amp;lt;actions/&amp;gt;&lt;/code&gt;包含'execute'属性，执行的默认值就是'execute'的值，如果没有，则执行动作没有默认值。&lt;/li&gt;
+&lt;/ul&gt;
+
+
+&lt;p&gt;特定约定：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;'execute'的属性值不应该是允许执行动作值之外的其他值。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+
+
+&lt;h3&gt;3.5 命令返回&lt;/h3&gt;
+
+&lt;p&gt;&lt;code&gt;&amp;lt;command/&amp;gt;&lt;/code&gt;本身的用处很小，主要用途依赖它所返回的信息。它可以承载有任何'namespace'的元素，不管已有的(如&quot;jabber:x:data&quot;)或是自定义的。唯一的限制是元素不需要特定的父元素，但是需要使用&quot;http://jabber.org/protocol/commands&quot;作为namespace的&lt;code&gt;&amp;lt;command/&amp;gt;&lt;/code&gt;为父元素。&lt;/p&gt;
+
+&lt;p&gt;一般来说，返回信息只能由服务端提供。目前主要的用法使返回&quot;jabber:x:data&quot;。这种情况下，如果服务端返回了一个需要提交的表单，请求应该按表单提交数据。&lt;/p&gt;
+
+&lt;p&gt;如果返回元素的顺序比较重要(当&quot;jabber:x:data&quot;和&quot;jabber:x:oob&quot;标识的元素被返回时)，请求者应当正确处理顺序。早接收到的元素比晚接收到的元素有高的优先级。由同一'namespace'标识的元素具有相同的优先级。&lt;/p&gt;
+
+&lt;h4&gt;3.5.1 使用表单数据&lt;/h4&gt;
+
+&lt;p&gt;当返回是&quot;jabber:x:data&quot;元素，有几种情况可以应用。提交者不应该使用&quot;jabber:x:data&quot;，而应该用&quot;submit&quot;。服务端应该认为任何&lt;code&gt;&amp;lt;x type='cancel'/&amp;gt;&lt;/code&gt;为&lt;code&gt;&amp;lt;x type='submit'/&amp;gt;&lt;/code&gt;。&lt;/p&gt;
+
+&lt;h3&gt;3.6 命令执行成功/失败&lt;/h3&gt;
+
+&lt;p&gt;命令的执行状态只能是'executing','completed'或'cancled'。如果完成了，'status'属性不设置成功或者失败的标识。如果命令完成了但是失败了，服务端必需至少包含一个&lt;code&gt;&amp;lt;note type='error'/&amp;gt;&lt;/code&gt;在它返回的&lt;code&gt;&amp;lt;command status='completed'/&amp;gt;&lt;/code&gt;元素.&lt;/p&gt;
+
+&lt;h3&gt;3.7 国际化&lt;/h3&gt;
+
+&lt;p&gt;...此处省略若干字&lt;/p&gt;
+
+&lt;h2&gt;4. Formal Description&lt;/h2&gt;
+
+&lt;p&gt;x-commands的重点元素是&lt;code&gt;&amp;lt;command/&amp;gt;&lt;/code&gt;.它被用来引导整个流程，还被用来返回命令的选项。&lt;/p&gt;
+
+&lt;h3&gt;4.1 &lt;code&gt;&amp;lt;command/&amp;gt;&lt;/code&gt;元素&lt;/h3&gt;
+
+&lt;p&gt;每个&lt;command/&gt;元素包含一下几个属性：一个node,一个'session id'，一个动作类型，一个状态类型，还有一个语言/地区。一个命令可能包含0个或多个&lt;code&gt;&amp;lt;note/&amp;gt;&lt;/code&gt;元素，可能包含有其他namespace的元素作为返回数据的载体。&quot;jabber:x:data&quot;和&quot;jabber:x:oob&quot;标识的元素通常被用作载体。&lt;/p&gt;
+
+&lt;p&gt;'node'元素唯一的确定命令。这个属性使&lt;strong&gt;必需&lt;/strong&gt;被包含的。&lt;/p&gt;
+
+&lt;p&gt;'sessionid'属性帮助命令在多步执行中定位执行过程。这个属性必须在有子步骤时被赋值，服务端应该初始化并且保存这个属性值。这个值不能没有或为空，可以为任意的字符串。这个值同时也需要请求者在请求命令时保存下来。&lt;/p&gt;
+
+&lt;p&gt;‘status'属性描述了当前命令的执行状态。这个值应该由服务端来设置。如果请求端设置了，服务端必需忽略之。属性值必需是下面的值中的某一个：&lt;/p&gt;
+
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;&lt;strong&gt;Status&lt;/strong&gt;&lt;/th&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;&lt;strong&gt;Description&lt;/strong&gt;&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;executing&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The command is being executed.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;completed&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The command has completed. The command session has ended.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;canceled&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The command has been canceled. The command session has ended.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+
+&lt;p&gt;'action'属性规定了这个命令的*下一个命令*可以执行的动作类型。这个值应该只又服务端来定义。如果请求端设置了，服务端必需忽略之。属性值必需是下面的值中的某一个：&lt;/p&gt;
+
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;&lt;strong&gt;Action&lt;/strong&gt;&lt;/th&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;&lt;strong&gt;Description&lt;/strong&gt;&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;execute&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The command should be executed or continue to be executed. This is the default value.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;cancel&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The command should be canceled.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;prev&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The command should be digress to the previous stage of execution.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;next&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The command should progress to the next stage of execution.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;complete&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The command should be completed (if possible).&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+
+&lt;p&gt;'xml:lang'属性指定了这个命令想要用的的语言/地区。这个属性可能由请求者设置，服务端应该返回当前正在用的语言/地区。&lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;&amp;lt;command/&amp;gt;&lt;/code&gt;元素的子元素(除了&lt;code&gt;&amp;lt;actions/&amp;gt;&lt;/code&gt;和&lt;code&gt;&amp;lt;note/&amp;gt;&lt;/code&gt;)都属于命令的执行内容。这些命令的顺序代表它们的优先级，所以前面的元素具有较高的优先级。&lt;/p&gt;
+
+&lt;h3&gt;4.2 &lt;code&gt;&amp;lt;actions/&amp;gt;&lt;/code&gt;元素&lt;/h3&gt;
+
+&lt;p&gt;某一步可以执行那些动作是由&lt;code&gt;&amp;lt;actions/&amp;gt;&lt;/code&gt;指定的。如果命令没有执行完，这个元素应该由服务端来指定，不应该由请求者指定。它还包含一个'execute'属性，用来指定默认的执行类型。它包含的子元素表示可以被执行的类型。&lt;/p&gt;
+
+&lt;p&gt;'execute'定义了客户端的默认行为，应该由服务端来制定，但是必需是&lt;code&gt;&amp;lt;actions/&amp;gt;&lt;/code&gt;的子元素中的一个。&lt;/p&gt;
+
+&lt;p&gt;子元素必须是下面的值中的一个：&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;prev&lt;/li&gt;
+&lt;li&gt;next&lt;/li&gt;
+&lt;li&gt;complete&lt;/li&gt;
+&lt;/ul&gt;
+
+
+&lt;h3&gt;4.3 &lt;code&gt;&amp;lt;note/&amp;gt;&lt;/code&gt;元素&lt;/h3&gt;
+
+&lt;p&gt;关于命令的当前状态的注释在&lt;code&gt;&amp;lt;note/&amp;gt;&lt;/code&gt;元素里提供。这个元素包含命令在一系列步骤中的信息。这个元素包含一个'type'属性，表明note的类型。&lt;code&gt;&amp;lt;note/&amp;gt;&lt;/code&gt;的内容应该是用户可以读懂的信息。&lt;/p&gt;
+
+&lt;p&gt;'type’属性使可选的，默认为'info‘，属性值必须是下面的值中的某一个：&lt;/p&gt;
+
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;&lt;strong&gt;Type&lt;/strong&gt;&lt;/th&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;&lt;strong&gt;Description&lt;/strong&gt;&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;info&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The note is informational only. This is not really an exceptional condition.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;warn&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The note indicates a warning. Possibly due to illogical (yet valid) data.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;error&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The note indicates an error. The text should indicate the reason for the error.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+
+&lt;h3&gt;4.4 错误类型&lt;/h3&gt;
+
+&lt;p&gt;为了讨论方便，使用一下的前缀代替命名空间的URI&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;xmpp&lt;/strong&gt; : urn:ietf:params:xml:ns:xmpp-stanzas&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;cmd&lt;/strong&gt; : http://jabber.org/protocol/commands&lt;/li&gt;
+&lt;/ul&gt;
+
+
+&lt;p&gt;下面使执行过程中可能出现的错误：&lt;/p&gt;
+
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;&lt;strong&gt;Error Type&lt;/strong&gt;&lt;/th&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;&lt;strong&gt;General Condition&lt;/strong&gt;&lt;/th&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;&lt;strong&gt;Specific Condition&lt;/strong&gt;&lt;/th&gt;
+&lt;th style=&quot;text-align:center;&quot;&gt;&lt;strong&gt;Description&lt;/strong&gt;&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;modify&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;xmpp:bad-request/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;cmd:malformed-action/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The responding JID does not understand the specified action.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;modify&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;xmpp:bad-request/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;cmd:bad-action/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The responding JID cannot accept the specified action.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;modify&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;xmpp:bad-request/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;cmd:bad-locale/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The responding JID cannot accept the specified language/locale.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;modify&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;xmpp:bad-request/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;cmd:bad-payload/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The responding JID cannot accept the specified payload (e.g. the data form did not provide one or more required fields).&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;modify&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;xmpp:bad-request/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;cmd:bad-sessionid/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The responding JID cannot accept the specified sessionid.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;cancel&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;xmpp:not-allowed/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;cmd:session-expired/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The requesting JID specified a sessionid that is no longer active (either because it was completed, canceled, or timed out).&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;cancel&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;xmpp:forbidden/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;NONE&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The requesting JID is not allowed to execute the command.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;cancel&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;xmpp:item-not-found/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;NONE&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The responding JID cannot find the requested command node.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;cancel&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;xmpp:feature-not-implemented/&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;NONE&lt;/td&gt;
+&lt;td style=&quot;text-align:center;&quot;&gt;The responding JID does not support &quot;http://jabber.org/protocol/commands&quot;.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+
+&lt;h3&gt;5… 6… 7…&lt;/h3&gt;
+
+&lt;p&gt;此处省略若干字&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;pre&gt;&lt;code&gt;                                                                   +-----------+
+                                              *complete            |           |
+                                      +---------------------------&amp;gt;| completed |+------------------+
+                          *prev       |                            |           |                   |
+                     +-----------+    |                            +-----------+                   |
+                     |           v    |                                                            v
+xxxxxxxxx            |    +-------------+                                                       xxxxxxx
+x+-----+x            +----|             |                                                       x+---+x
+x|START|x ---------------&amp;gt;|  executing  |                                                       x|END|x
+x+-----+x                 |             |----+                                                  x+---+x
+xxxxxxxxx                 +-------------+    |                                                  xxxxxxx
+                              |  ^           |                                                     ^
+                              |  +-----------+                                                     |
+                              |     *next                                                          |
+                              |                                    +---------+                     |
+                              |                                    |         |                     |
+                              +-----------------------------------&amp;gt;| cancled |+--------------------+
+                                                  *cancle          |         |
+                                                                   +---------+
 &lt;/code&gt;&lt;/pre&gt;
 </content>
    </entry>
