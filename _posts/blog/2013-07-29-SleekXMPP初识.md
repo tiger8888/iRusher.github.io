@@ -14,6 +14,8 @@ tags: xmpp python sleekxmpp
 
 #### 安装SleekXMPP
 
+从Github上取到最新的版本：
+
 	git clone https://github.com/fritzy/SleekXMPP.git
 	cd SleekXMPP
 	sudo python setup.py install
@@ -24,7 +26,6 @@ tags: xmpp python sleekxmpp
 
 	git clone http://github.com/rthalley/dnspython
 	cd dnspython
-	git checkout python3
 	python setup.py install
 
 ##示例
@@ -70,4 +71,5 @@ tags: xmpp python sleekxmpp
 	   
 ## 参考文档
 
-[DNS Configuration](http://prosody.im/doc/dns)
+1. [SleekXMPP Architecture](http://sleekxmpp.com/architecture.html)
+2. [DNS Configuration](http://prosody.im/doc/dns)
