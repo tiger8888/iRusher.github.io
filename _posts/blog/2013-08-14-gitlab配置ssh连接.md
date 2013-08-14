@@ -2,7 +2,7 @@
 layout: post
 title: Gitlab配置ssh连接
 categories: blog
-tags:git gitlab ssh
+tags: git gitlab ssh
 ---
 
 
@@ -13,6 +13,7 @@ tags:git gitlab ssh
 Gitlab，Github都支持这种方式的连接，具体操作步骤如下：
 
 ####第一步:生成密钥对
+使用`ssh-keygen`生成密钥对:
 
 	ssh-keygen -t rsa -C "你的邮箱"
 
