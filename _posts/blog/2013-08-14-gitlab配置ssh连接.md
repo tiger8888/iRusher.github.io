@@ -29,6 +29,8 @@ Gitlab，Github都支持这种方式的连接，具体操作步骤如下：
 
 ####第三步:测试
 
+ssh加`-T`选项测试目标服务是否可用:
+
 	ssh -T git@"你的gitlab服务器地址"
 	
 第一次连接时，会询问是否信任主机，确认后输入yes。如果看到`Welcome to GitLab, Rusher!`就算配置成功了，接下来就可以通过ssh来提交代码了。
