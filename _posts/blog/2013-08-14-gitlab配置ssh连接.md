@@ -96,6 +96,10 @@ ssh加`-T`选项测试目标服务是否可用:
 	
 还是需要将两个账号的公钥分别添加的各自账号的SSH Keys中(rusher: id_rsa_gitlab_rusher.pub和root: id_rsa_gitlab_root.pub) 。
 
+    ssh-add /Users/you/.ssh/id_rsa_gitlab_rusher
+
+	ssh-add /Users/you/.ssh/id_rsa_gitlab_root
+
 ####第二步:添加ssh配置文件
 
 在.ssh目录中添加`config`文件，此文件的为不同的账户添加别名(root: root_gitlab 和 rusher: rusher_gitlab)，连接还是同一个服务器，但是使用不同的密钥文件，所以才能将两个账号分开。
@@ -111,7 +115,9 @@ ssh加`-T`选项测试目标服务是否可用:
 	  HostName git.you.com
 	  User git
 	  IdentityFile /Users/you/.ssh/id_rsa_gitlab_rusher
-	  
+
+配置完成后，使用`ssh-add`命令
+
 接下来这样使用别名测试，可以查看是否对应到了正确的账号上：
 
 	ssh -T git@root_gitlab 
@@ -135,3 +141,6 @@ ssh加`-T`选项测试目标服务是否可用:
 ## 参考文档
 
 * [Github Help](https://help.github.com/articles/generating-ssh-keys)
+
+UPDATE 2013-08-16: 为不同账号生成密钥对后，需要使用ssh-add将密钥添加进来，否则ssh不能使用正确的密钥
+
