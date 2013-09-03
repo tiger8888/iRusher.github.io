@@ -10,6 +10,7 @@ tags: objective-c runtime message
 runtime相关的内容最近经常看到，看大牛们用到这些特性就像这样:
 
 ![nb.gif](http://i1.hoopchina.com.cn/user/376/3409376/1277105284c636c.gif) 
+![img](./img/x.jpg)
 
 尤其是在一些工具类中，使用runtime的特性，通常能达到事半功倍的效果。
 
