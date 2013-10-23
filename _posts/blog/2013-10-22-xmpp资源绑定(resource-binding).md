@@ -202,12 +202,22 @@ ps: 修改完需要重启openfire。
 
 	- (void)xmppStream:(XMPPStream *)sender didReceiveError:(id)error
 	{
+	    
 	    NSXMLElement *element = (NSXMLElement*) error;
-	    DDLogError(@"%@",[element XMLString]);
+	    NSString *elementName = [element name];
 	    
 	    //<stream:error xmlns:stream="http://etherx.jabber.org/streams">
 	    //  <conflict xmlns="urn:ietf:params:xml:ns:xmpp-streams"/>
 	    //</stream:error>
+	
+		if ([elementName isEqualToString:@"stream:error"] || [elementName isEqualToString:@"error"])
+		{
+			NSXMLElement *conflict = [element elementForName:@"conflict" xmlns:@"urn:ietf:params:xml:ns:xmpp-streams"];
+			if (conflict)
+			{
+				
+			}
+		}
 	}
 
 ### TODO: Smack处理
