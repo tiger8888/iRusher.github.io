@@ -94,8 +94,7 @@ tags: objective-c delegate design-patterns
 
 上面的Module是XMPPFramework中出现的。我把`GCDMulticastDelegate`抽取出来，可以为我们所用,代码在[这里](https://github.com/iRusher/GCDMulticastDelegate)。
 
-
-
+在使用这个多重代理的时候，发现执行代理方法的类不需要实现代理协议，
 
 
 

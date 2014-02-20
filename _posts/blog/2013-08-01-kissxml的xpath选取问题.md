@@ -16,7 +16,7 @@ XMPPFramework用的XML解析库还是大神自己写的[KissXML](https://github.
 	
 需要得到各个`<param/>`子元素中的键值对应关系`text->text in element`和`voice->voice in element`。最简单的方法就是用XPath选取指定的元素。
 
-KissXML的NSXMLElement类的父类NSXMLNode有一个通过XPath选取子元素得到数组的方法：
+KissXML的NSXMLElement类的父类NSXMLNode有一个通过XPath选取子元素得数组的方法：
 	
 	- (NSArray *)nodesForXPath:(NSString *)xpath error:(NSError **)error;
 	
